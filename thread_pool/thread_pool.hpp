@@ -16,27 +16,13 @@ namespace thread_pool {
 
 class THREADPOOL_EXPORT thread_pool final {
 public:
-   class worker_execution_times final {
-   public:
+   struct worker_execution_times final {
       worker_execution_times() = default;
 
       worker_execution_times(boost::timer::cpu_times&& working_times, boost::timer::cpu_times&& sleeping_times);
 
-
-      /* TODO Research why linking fails when
-         working_times and sleeping_times are in .cpp */
-
-      const boost::timer::cpu_times& working_times() const {
-         return _working;
-      }
-
-      const boost::timer::cpu_times& sleeping_times() const {
-         return _sleeping;
-      }
-
-   private:
-      boost::timer::cpu_times _working;
-      boost::timer::cpu_times _sleeping;
+      boost::timer::cpu_times working;
+      boost::timer::cpu_times sleeping;
    };
 
 
@@ -63,8 +49,6 @@ public:
       return result;
    }
 
-   const std::vector<worker_execution_times>& workers_execution_times() const;
-
 
 private:
    class job_wrapper final {
@@ -86,7 +70,6 @@ private:
 
 
       void execute();
-      boost::timer::cpu_times last_execution_time() const;
 
    private:
       class callable {
@@ -112,18 +95,16 @@ private:
 
 
       std::unique_ptr<callable> _job;
-      boost::timer::cpu_timer _timer;
    };
 
 
-   void execute_pending_job(worker_execution_times& execution_times);
+   void execute_pending_job();
    void join_threads();
 
    // TODO research how std::atomic<bool> works
    std::atomic<bool> _execute;
-   std::vector<std::thread> _workers;
-   std::vector<worker_execution_times> _worker_times;
    data_structures::thread_safe::lock_based::queue<job_wrapper> _jobs;
+   std::vector<std::thread> _workers;
 };
 
 } // namespace thread_pool

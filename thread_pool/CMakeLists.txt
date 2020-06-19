@@ -2,7 +2,7 @@
 
 
 add_library(ThreadPool SHARED 
-   thread_pool.hpp  thread_pool.cpp "data_structures/thread_safe/lock_based/queue.hpp")
+   thread_pool.hpp  thread_pool.cpp "data_structures/thread_safe/lock_based/queue.hpp" "util/boost.hpp")
 
 set(Boost_ADDITIONAL_VERSIONS "1.73.0" "1.73.0")
 find_package(Boost 1.73 REQUIRED COMPONENTS timer)
