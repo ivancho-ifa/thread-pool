@@ -5,9 +5,6 @@ add_executable(ThreadPoolTests main.cpp "test_thread_pool.cpp" "test_queue.cpp")
 # Link Boost libraries
 
 set(Boost_ADDITIONAL_VERSIONS "1.73.0" "1.73.0")
-# TODO Make this cross-platform
-# set(Boost_INCLUDE_DIR C:\\Users\\imollov\\vcpkg\\installed\\x64-windows\\include)
-# set(Boost_LIBRARY_DIR C:\\Users\\imollov\\vcpkg\\installed\\x64-windows\\lib)
 
 find_package(Boost 1.73 REQUIRED COMPONENTS timer unit_test_framework)
 
