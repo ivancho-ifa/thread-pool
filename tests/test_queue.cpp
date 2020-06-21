@@ -8,16 +8,15 @@
 #include <boost/timer/timer.hpp>
 
 using boost::timer::nanosecond_type;
-using thread_pool::data_structures::thread_safe::lock_based::std_queue;
 using thread_pool::data_structures::thread_safe::lock_based::queue;
+using thread_pool::data_structures::thread_safe::lock_based::std_queue;
 
-template<typename T>
-nanosecond_type measure_performance() {
+template <typename T> nanosecond_type measure_performance() {
 	boost::timer::cpu_timer timer;
 	timer.start();
-	
+
 	T queue;
-	
+
 	std::thread reader{[&queue]() {
 		for (int i = 0; i < 1000; ++i)
 			queue.wait_pop();
@@ -33,15 +32,14 @@ nanosecond_type measure_performance() {
 		reader.join();
 	if (writer.joinable())
 		writer.join();
-	
+
 	timer.stop();
 	boost::timer::cpu_times elapsed_times = timer.elapsed();
 
 	return elapsed_times.wall;
 }
 
-template<typename T>
-nanosecond_type measure_performance(std::size_t count) {
+template <typename T> nanosecond_type measure_performance(std::size_t count) {
 	using namespace boost::accumulators;
 
 	accumulator_set<nanosecond_type, features<tag::mean>> accumulator;
@@ -67,7 +65,7 @@ BOOST_AUTO_TEST_CASE(Pop) {
 	BOOST_CHECK(queue.empty());
 }
 
-BOOST_AUTO_TEST_SUITE_END(SingleThread)
+BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(ReaderWriterThreads)
 
@@ -91,7 +89,7 @@ BOOST_AUTO_TEST_CASE(WaitPop) {
 		writer.join();
 }
 
-BOOST_AUTO_TEST_SUITE_END(ReaderWriterThreads)
+BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(Performance)
 
@@ -105,6 +103,6 @@ BOOST_AUTO_TEST_CASE(std_queue_vs_queue) {
 	BOOST_CHECK_LE(queue_time, thread_safe_std_queue_time);
 }
 
-BOOST_AUTO_TEST_SUITE_END(Performance)
+BOOST_AUTO_TEST_SUITE_END()
 
-BOOST_AUTO_TEST_SUITE_END(ThreadSafeQueue)
+BOOST_AUTO_TEST_SUITE_END()

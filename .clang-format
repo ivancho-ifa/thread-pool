@@ -1,0 +1,13 @@
+BasedOnStyle: Microsoft
+
+AlignAfterOpenBracket: Align
+BraceWrapping:
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+ColumnLimit: 120
+FixNamespaceComments: true
+NamespaceIndentation: None
+UseTab: ForContinuationAndIndentation

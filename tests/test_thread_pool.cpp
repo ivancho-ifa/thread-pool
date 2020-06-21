@@ -10,7 +10,6 @@
 #include <numeric>
 #include <thread>
 
-
 namespace this_thread = std::this_thread;
 
 using namespace std::chrono_literals;
@@ -22,8 +21,7 @@ using std::random_shuffle;
 using std::sort;
 using std::vector;
 
-
-std::vector<std::vector<int>::iterator> separate_to_chunks(std::vector<int>& data, size_t chunks_count) {
+std::vector<std::vector<int>::iterator> separate_to_chunks(std::vector<int> &data, size_t chunks_count) {
 	const size_t chunks_size = (data.size() / chunks_count) + 1;
 
 	std::vector<std::vector<int>::iterator> chunk_separators;
@@ -37,9 +35,9 @@ std::vector<std::vector<int>::iterator> separate_to_chunks(std::vector<int>& dat
 	return chunk_separators;
 }
 
-void merge_sorted_chunks_serial(std::vector<int>& data, std::vector<std::vector<int>::iterator>& chunk_separators) {
+void merge_sorted_chunks_serial(std::vector<int> &data, std::vector<std::vector<int>::iterator> &chunk_separators) {
 	const int end = chunk_separators.size() - 2;
-	if (end == 0) 
+	if (end == 0)
 		return;
 
 	for (int i = 0; i < end; i += 2) {
@@ -53,66 +51,65 @@ void merge_sorted_chunks_serial(std::vector<int>& data, std::vector<std::vector<
 	merge_sorted_chunks_serial(data, chunk_separators);
 }
 
-std::future<std::pair<int, int>> parallel_sort(thread_pool::thread_pool& workers, std::vector<int>& data, std::vector<std::vector<int>::iterator>& chunk_separators, int begin, int end) {
+std::future<std::pair<int, int>> parallel_sort(thread_pool::thread_pool &workers, std::vector<int> &data,
+											   std::vector<std::vector<int>::iterator> &chunk_separators, int begin,
+											   int end) {
 	if (end == begin + 1) {
-		return workers.add_job(
-			[=, chunk_begin = chunk_separators[begin], chunk_end = chunk_separators[end]]() {
+		return workers.add_job([=, chunk_begin = chunk_separators[begin], chunk_end = chunk_separators[end]]() {
 			std::sort(chunk_begin, chunk_end);
 
 			return std::make_pair(begin, end);
 		});
 	}
-	
+
 	const int middle = (begin + end) / 2;
 
-	return workers.add_job(
-		[begin, middle, end, &workers, &data, &chunk_separators]() {
-			const auto end_2 = middle + (middle - begin);
+	return workers.add_job([begin, middle, end, &workers, &data, &chunk_separators]() {
+		const auto end_2 = middle + (middle - begin);
 
-			auto merge_1 = parallel_sort(workers, data, chunk_separators, begin, middle);
-			auto merge_2 = parallel_sort(workers, data, chunk_separators, middle, end_2);
+		auto merge_1 = parallel_sort(workers, data, chunk_separators, begin, middle);
+		auto merge_2 = parallel_sort(workers, data, chunk_separators, middle, end_2);
 
-			// Avoid deadlocking the workers
-			while (merge_1.wait_for(0s) == std::future_status::timeout || merge_2.wait_for(0s) == std::future_status::timeout) {
+		// Avoid deadlocking the workers
+		while (merge_1.wait_for(0s) == std::future_status::timeout ||
+			   merge_2.wait_for(0s) == std::future_status::timeout) {
+			workers.execute_pending_job();
+		}
+
+		const auto merged_range_1 = merge_1.get();
+		const auto merged_range_2 = merge_2.get();
+
+		assert(std::is_sorted(chunk_separators[merged_range_1.first], chunk_separators[merged_range_1.second]));
+		assert(std::is_sorted(chunk_separators[merged_range_2.first], chunk_separators[merged_range_2.second]));
+
+		std::inplace_merge(chunk_separators[merged_range_1.first], chunk_separators[merged_range_1.second],
+						   chunk_separators[merged_range_2.second]);
+
+		assert(std::is_sorted(chunk_separators[merged_range_1.first], chunk_separators[merged_range_2.second]));
+
+		if ((end - begin) % 2 != 0) {
+			auto merge_3 = parallel_sort(workers, data, chunk_separators, merged_range_2.second, end);
+			while (merge_3.wait_for(0s) == std::future_status::timeout) {
 				workers.execute_pending_job();
 			}
+			merge_3.wait();
 
-			const auto merged_range_1 = merge_1.get();
-			const auto merged_range_2 = merge_2.get();
+			std::inplace_merge(chunk_separators[merged_range_1.first], chunk_separators[merged_range_2.second],
+							   chunk_separators[end]);
 
-			assert(std::is_sorted(chunk_separators[merged_range_1.first], chunk_separators[merged_range_1.second]));
-			assert(std::is_sorted(chunk_separators[merged_range_2.first], chunk_separators[merged_range_2.second]));
+			assert(std::is_sorted(chunk_separators[merged_range_1.first], chunk_separators[end]));
 
-			std::inplace_merge(chunk_separators[merged_range_1.first], chunk_separators[merged_range_1.second], chunk_separators[merged_range_2.second]);
-
-			assert(std::is_sorted(chunk_separators[merged_range_1.first], chunk_separators[merged_range_2.second]));
-
-			if ((end - begin) % 2 != 0) {
-				auto merge_3 = parallel_sort(workers, data, chunk_separators, merged_range_2.second, end);
-				while (merge_3.wait_for(0s) == std::future_status::timeout) {
-					workers.execute_pending_job();
-				}
-				merge_3.wait();
-
-				std::inplace_merge(chunk_separators[merged_range_1.first], chunk_separators[merged_range_2.second], chunk_separators[end]);
-
-				assert(std::is_sorted(chunk_separators[merged_range_1.first], chunk_separators[end]));
-
-				return std::make_pair(merged_range_1.first, end);
-			}
-
-			return std::make_pair(merged_range_1.first, merged_range_2.second);
+			return std::make_pair(merged_range_1.first, end);
 		}
-	);
-}
 
+		return std::make_pair(merged_range_1.first, merged_range_2.second);
+	});
+}
 
 BOOST_AUTO_TEST_SUITE(ThreadPoolTests)
 
 BOOST_AUTO_TEST_CASE(CreateAndDestroy) {
-	BOOST_CHECK_NO_THROW({
-		thread_pool::thread_pool workers;
-	});
+	BOOST_CHECK_NO_THROW({ thread_pool::thread_pool workers; });
 }
 
 BOOST_AUTO_TEST_CASE(DataParallelism) {
@@ -123,21 +120,20 @@ BOOST_AUTO_TEST_CASE(DataParallelism) {
 	std::random_shuffle(data.begin(), data.end());
 
 	const size_t chunks_count = 100;
-	const size_t chunks_size = (data.size() / chunks_count) + 1;
-	
+
 	std::vector<std::future<void>> job_results;
 	job_results.reserve(chunks_count);
 
 	auto chunk_separators = separate_to_chunks(data, chunks_count);
 
 	for (int i = 0; i < chunk_separators.size() - 1; ++i) {
-		job_results.emplace_back(workers.add_job(
-			[chunk_begin = chunk_separators[i], chunk_end = chunk_separators[i + 1]]() {
-			   std::sort(chunk_begin, chunk_end);
-		}));
+		job_results.emplace_back(
+			workers.add_job([chunk_begin = chunk_separators[i], chunk_end = chunk_separators[i + 1]]() {
+				std::sort(chunk_begin, chunk_end);
+			}));
 	}
 
-	for (auto& job_result : job_results)
+	for (auto &job_result : job_results)
 		job_result.wait();
 
 	merge_sorted_chunks_serial(data, chunk_separators);
@@ -166,4 +162,4 @@ BOOST_AUTO_TEST_CASE(TaskParallelism) {
 	BOOST_CHECK_EQUAL_COLLECTIONS(data.cbegin(), data.cend(), sorted_data.cbegin(), sorted_data.cend());
 }
 
-BOOST_AUTO_TEST_SUITE_END(ThreadPoolTests)
+BOOST_AUTO_TEST_SUITE_END()

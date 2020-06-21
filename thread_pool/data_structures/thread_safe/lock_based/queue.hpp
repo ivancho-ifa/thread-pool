@@ -1,44 +1,41 @@
 #pragma once
 
-#include <iostream>
 #include <functional>
+#include <iostream>
 #include <mutex>
 #include <queue>
 #include <utility>
 
 namespace thread_pool {
-
 namespace data_structures {
-
 namespace thread_safe {
-
 namespace lock_based {
 
-template<typename T>
-class queue {
-	static_assert(std::is_nothrow_move_constructible<T>::value, "The thread-safe queue requires nothrowable move-constructible elements");
+template <typename T> class queue {
+	static_assert(std::is_nothrow_move_constructible<T>::value,
+				  "The thread-safe queue requires nothrowable move-constructible elements");
 
-public:
-	queue() :
-		_head{std::make_unique<node>()}, _tail{_head.get()} {
+  public:
+	queue() : _head{std::make_unique<node>()}, _tail{_head.get()} {
 	}
 
-	queue(const queue&) = delete;
-	queue& operator=(const queue&) = delete;
+	queue(const queue &) = delete;
 
-	queue(queue&&) = default;
-	queue& operator=(queue&&) = default;
+	queue &operator=(const queue &) = delete;
+
+	queue(queue &&) = default;
+
+	queue &operator=(queue &&) = default;
 
 	~queue() = default;
 
-
-	void push(T&& data) {
+	void push(T &&data) {
 		std::unique_ptr<node> tail = std::make_unique<node>(std::move(data));
 
 		{
 			std::lock_guard<std::mutex> lock{_tail_guard};
 
-			node* const new_tail = tail.get();
+			node *const new_tail = tail.get();
 			_tail->next_node = std::move(tail);
 			_tail = new_tail;
 		}
@@ -61,9 +58,7 @@ public:
 	T wait_pop() {
 		std::unique_lock<std::mutex> lock{_head_guard};
 
-		_notifier.wait(lock, [this]() { 
-			return _head.get() != this->get_tail();
-		});
+		_notifier.wait(lock, [this]() { return _head.get() != this->get_tail(); });
 
 		T head = std::move(_head->next_node->data);
 		_head = std::move(_head->next_node);
@@ -76,20 +71,23 @@ public:
 		return _head.get() == this->get_tail();
 	}
 
-private:
+  private:
 	struct node {
 		node() = default;
-		explicit node(T&& data) :
-			node{std::move(data), nullptr} {}
-		explicit node(T&& data, node* next_node) :
-			data{std::move(data)}, next_node{next_node}
-		{}
 
-		node(const node&) = delete;
-		node& operator=(const node&) = delete;
+		explicit node(T &&data) : node{std::move(data), nullptr} {
+		}
 
-		node(node&&) = default;
-		node& operator=(node&&) = default;
+		explicit node(T &&data, node *next_node) : data{std::move(data)}, next_node{next_node} {
+		}
+
+		node(const node &) = delete;
+
+		node &operator=(const node &) = delete;
+
+		node(node &&) = default;
+
+		node &operator=(node &&) = default;
 
 		~node() = default;
 
@@ -97,7 +95,7 @@ private:
 		std::unique_ptr<node> next_node;
 	};
 
-	node* get_tail() const {
+	node *get_tail() const {
 		std::lock_guard<std::mutex> lock{_tail_guard};
 
 		return _tail;
@@ -107,21 +105,22 @@ private:
 	std::unique_ptr<node> _head;
 	// TODO Research if it makes sense to protect the tail with a read/write lock
 	mutable std::mutex _tail_guard;
-	node* _tail;
+	node *_tail;
 	std::condition_variable _notifier;
 };
 
 /**
  * @brief A thread-safe wrapper of std::queue
- * @tparam T Any move-constructable type which does not in any way lock the guard of this queue in its copy/move constructor
-*/
+ * @tparam T Any move-constructable type which does not in any way lock the guard of this queue in its copy/move
+ * constructor
+ */
 
-template<typename T>
-class std_queue {
-	static_assert(std::is_nothrow_move_constructible<T>::value, "The thread-safe queue requires nothrowable move-constructible elements");
+template <typename T> class std_queue {
+	static_assert(std::is_nothrow_move_constructible<T>::value,
+				  "The thread-safe queue requires nothrowable move-constructible elements");
 
-public:
-	void push(T&& element) {
+  public:
+	void push(T &&element) {
 		std::lock_guard<std::mutex> lock{_guard};
 
 		_queue.emplace(std::move(element));
@@ -140,16 +139,13 @@ public:
 		return front;
 	}
 
-private:
+  private:
 	std::mutex _guard;
 	std::condition_variable _notifier;
 	std::queue<T> _queue;
 };
 
 } // namespace lock_based
-
 } // namespace thread_safe
-
 } // namespace data_structures
-
 } // namespace thread_pool
