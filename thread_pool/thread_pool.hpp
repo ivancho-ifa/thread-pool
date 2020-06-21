@@ -39,7 +39,7 @@ public:
 
    template<typename Job>
    // TODO research how std::future works
-   std::future<typename std::result_of<Job()>::type> execute(Job job) {
+   std::future<typename std::result_of<Job()>::type> add_job(Job job) {
       using JobResult = std::result_of<Job()>::type;
 
       // TODO research how std::packaged_task works
@@ -48,6 +48,8 @@ public:
       _jobs.push(job_wrapper{std::move(task)});
       return result;
    }
+
+   void execute_pending_job();
 
 
 private:
@@ -98,7 +100,7 @@ private:
    };
 
 
-   void execute_pending_job();
+   void execute_pending_jobs();
    void join_threads();
 
    // TODO research how std::atomic<bool> works

@@ -5,12 +5,15 @@
 #include <boost/test/unit_test.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <numeric>
 #include <thread>
 
 
 namespace this_thread = std::this_thread;
+
+using namespace std::chrono_literals;
 
 using std::back_inserter;
 using std::cout;
@@ -20,59 +23,147 @@ using std::sort;
 using std::vector;
 
 
-BOOST_AUTO_TEST_SUITE(Basic)
+std::vector<std::vector<int>::iterator> separate_to_chunks(std::vector<int>& data, size_t chunks_count) {
+	const size_t chunks_size = (data.size() / chunks_count) + 1;
 
-BOOST_AUTO_TEST_CASE(CtorDtor) {
-	thread_pool::thread_pool workers;
+	std::vector<std::vector<int>::iterator> chunk_separators;
+	chunk_separators.reserve(chunks_size);
+
+	for (int i = 0; i < chunks_count; ++i) {
+		chunk_separators.push_back(data.begin() + i * chunks_size);
+	}
+	chunk_separators.push_back(data.end());
+
+	return chunk_separators;
 }
 
-BOOST_AUTO_TEST_CASE(CreateThreadPool) {
-	thread_pool::thread_pool workers;
+void merge_sorted_chunks_serial(std::vector<int>& data, std::vector<std::vector<int>::iterator>& chunk_separators) {
+	const int end = chunk_separators.size() - 2;
+	if (end == 0) 
+		return;
 
-	vector<int> data;
-	data.reserve(100'000);
-	for (int i = 0; i < 100'000; ++i)
-		data.emplace_back(i);
-	random_shuffle(data.begin(), data.end());
-
-
-	// sort the two halves of the array
-
-	auto job0 = workers.execute([&]() {
-		cout << "thread " << this_thread::get_id() << '\n';
-
-		sort(data.begin(), data.begin() + data.size() / 2);
-	});
-	auto job1 = workers.execute([&]() {
-		cout << "thread " << this_thread::get_id() << '\n';
-
-		sort(data.begin() + data.size() / 2, data.end());
-	});
-
-	job0.wait();
-	job1.wait();
-
-
-	// merge the two sorted halves of the array
-
-	vector<int> sorted_data;
-	sorted_data.reserve(data.size());
-
-	auto job2 = workers.execute([&]() {
-		merge(data.begin(), data.begin() + data.size() / 2, data.begin() + data.size() / 2, data.end(), back_inserter(sorted_data));
-	});
-
-	job2.wait();
-
-
-	for (int i = 0; i < 100'000; ++i) {
-		BOOST_CHECK_EQUAL(sorted_data[i], i);
-
-		if (sorted_data[i] != i)
-			break;
+	for (int i = 0; i < end; i += 2) {
+		std::inplace_merge(chunk_separators[i], chunk_separators[i + 1], chunk_separators[i + 2]);
+	}
+	for (int i = 1; i < chunk_separators.size() - 1; i += 2) {
+		chunk_separators.erase(chunk_separators.begin() + i);
+		--i;
 	}
 
-	cout << "Finished work" << '\n';
+	merge_sorted_chunks_serial(data, chunk_separators);
 }
 
-BOOST_AUTO_TEST_SUITE_END(Basic)
+std::future<std::pair<int, int>> parallel_sort(thread_pool::thread_pool& workers, std::vector<int>& data, std::vector<std::vector<int>::iterator>& chunk_separators, int begin, int end) {
+	if (end == begin + 1) {
+		return workers.add_job(
+			[=, chunk_begin = chunk_separators[begin], chunk_end = chunk_separators[end]]() {
+			std::sort(chunk_begin, chunk_end);
+
+			return std::make_pair(begin, end);
+		});
+	}
+	
+	const int middle = (begin + end) / 2;
+
+	return workers.add_job(
+		[begin, middle, end, &workers, &data, &chunk_separators]() {
+			const auto end_2 = middle + (middle - begin);
+
+			auto merge_1 = parallel_sort(workers, data, chunk_separators, begin, middle);
+			auto merge_2 = parallel_sort(workers, data, chunk_separators, middle, end_2);
+
+			// Avoid deadlocking the workers
+			while (merge_1.wait_for(0s) == std::future_status::timeout || merge_2.wait_for(0s) == std::future_status::timeout) {
+				workers.execute_pending_job();
+			}
+
+			const auto merged_range_1 = merge_1.get();
+			const auto merged_range_2 = merge_2.get();
+
+			assert(std::is_sorted(chunk_separators[merged_range_1.first], chunk_separators[merged_range_1.second]));
+			assert(std::is_sorted(chunk_separators[merged_range_2.first], chunk_separators[merged_range_2.second]));
+
+			std::inplace_merge(chunk_separators[merged_range_1.first], chunk_separators[merged_range_1.second], chunk_separators[merged_range_2.second]);
+
+			assert(std::is_sorted(chunk_separators[merged_range_1.first], chunk_separators[merged_range_2.second]));
+
+			if ((end - begin) % 2 != 0) {
+				auto merge_3 = parallel_sort(workers, data, chunk_separators, merged_range_2.second, end);
+				while (merge_3.wait_for(0s) == std::future_status::timeout) {
+					workers.execute_pending_job();
+				}
+				merge_3.wait();
+
+				std::inplace_merge(chunk_separators[merged_range_1.first], chunk_separators[merged_range_2.second], chunk_separators[end]);
+
+				assert(std::is_sorted(chunk_separators[merged_range_1.first], chunk_separators[end]));
+
+				return std::make_pair(merged_range_1.first, end);
+			}
+
+			return std::make_pair(merged_range_1.first, merged_range_2.second);
+		}
+	);
+}
+
+
+BOOST_AUTO_TEST_SUITE(ThreadPoolTests)
+
+BOOST_AUTO_TEST_CASE(CreateAndDestroy) {
+	BOOST_CHECK_NO_THROW({
+		thread_pool::thread_pool workers;
+	});
+}
+
+BOOST_AUTO_TEST_CASE(DataParallelism) {
+	thread_pool::thread_pool workers;
+
+	std::vector<int> data(1'000'000);
+	std::iota(data.begin(), data.end(), 0);
+	std::random_shuffle(data.begin(), data.end());
+
+	const size_t chunks_count = 100;
+	const size_t chunks_size = (data.size() / chunks_count) + 1;
+	
+	std::vector<std::future<void>> job_results;
+	job_results.reserve(chunks_count);
+
+	auto chunk_separators = separate_to_chunks(data, chunks_count);
+
+	for (int i = 0; i < chunk_separators.size() - 1; ++i) {
+		job_results.emplace_back(workers.add_job(
+			[chunk_begin = chunk_separators[i], chunk_end = chunk_separators[i + 1]]() {
+			   std::sort(chunk_begin, chunk_end);
+		}));
+	}
+
+	for (auto& job_result : job_results)
+		job_result.wait();
+
+	merge_sorted_chunks_serial(data, chunk_separators);
+
+	std::list<int> sorted_data(data.size());
+	std::iota(sorted_data.begin(), sorted_data.end(), 0);
+	BOOST_CHECK_EQUAL_COLLECTIONS(data.cbegin(), data.cend(), sorted_data.cbegin(), sorted_data.cend());
+}
+
+BOOST_AUTO_TEST_CASE(TaskParallelism) {
+	thread_pool::thread_pool workers;
+
+	std::vector<int> data(1'000'000);
+	std::iota(data.begin(), data.end(), 0);
+	std::random_shuffle(data.begin(), data.end());
+
+	const size_t chunks_count = 100;
+
+	auto chunk_separators = separate_to_chunks(data, chunks_count);
+
+	auto sort_result = parallel_sort(workers, data, chunk_separators, 0, chunk_separators.size() - 1);
+	sort_result.wait();
+
+	std::list<int> sorted_data(data.size());
+	std::iota(sorted_data.begin(), sorted_data.end(), 0);
+	BOOST_CHECK_EQUAL_COLLECTIONS(data.cbegin(), data.cend(), sorted_data.cbegin(), sorted_data.cend());
+}
+
+BOOST_AUTO_TEST_SUITE_END(ThreadPoolTests)

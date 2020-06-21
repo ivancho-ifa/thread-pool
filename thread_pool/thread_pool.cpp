@@ -38,7 +38,7 @@ thread_pool::thread_pool() :
    _workers.reserve(threads_count);
    try {
       for (unsigned i = 0; i < threads_count; ++i) {
-         _workers.emplace_back(thread{&thread_pool::execute_pending_job, this});
+         _workers.emplace_back(thread{&thread_pool::execute_pending_jobs, this});
       }
    }
    catch (const system_error& e) {
@@ -63,6 +63,20 @@ thread_pool::~thread_pool() {
    this->join_threads();
 }
 
+void thread_pool::execute_pending_job() {
+   // TODO use wait_pop when you can interrupt it
+   //job_wrapper job = _jobs.wait_pop();
+   //job.execute();
+   
+   try {
+      job_wrapper job = _jobs.pop();
+      job.execute();
+   }
+   catch (const logic_error& error) {
+      std::this_thread::yield();
+   }
+}
+
 
 /* thread_pool::job_wrapper definitions */
 
@@ -73,20 +87,9 @@ void thread_pool::job_wrapper::execute() {
 /* thread_pool::job_wrapper definitions end */
 
 
-void thread_pool::execute_pending_job() {
-   cpu_timer thread_execution_timer;
-   cpu_times thread_working_time;
-
-   while (_execute) {
-      //job_wrapper job = _jobs.wait_pop();
-      //job.execute();
-      try {
-         job_wrapper job = _jobs.pop();
-         job.execute();
-      }
-      catch (const logic_error& error) {
-      }
-   }
+void thread_pool::execute_pending_jobs() {
+   while (_execute)
+      this->execute_pending_job();
 }
 
 void thread_pool::join_threads()
