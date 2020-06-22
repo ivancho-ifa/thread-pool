@@ -21,14 +21,6 @@ using std::vector;
 
 namespace thread_pool {
 
-/* thread_pool::worker_execution_times definitions */
-
-thread_pool::worker_execution_times::worker_execution_times(cpu_times&& working_times, cpu_times&& sleeping_times)
-	: working{working_times}, sleeping{sleeping_times} {
-}
-
-/* thread_pool::worker_execution_times definitions end */
-
 thread_pool::thread_pool() : _execute{true} {
 	const unsigned threads_count = thread::hardware_concurrency();
 	_workers.reserve(threads_count);
@@ -63,13 +55,10 @@ void thread_pool::execute_pending_job() {
 	// job_wrapper job = _jobs.wait_pop();
 	// job.execute();
 
-	try {
-		job_wrapper job = _jobs.pop();
+	if (job_wrapper job; _jobs.pop(job))
 		job.execute();
-	}
-	catch (const logic_error& error) {
+	else
 		std::this_thread::yield();
-	}
 }
 
 /* thread_pool::job_wrapper definitions */
@@ -83,6 +72,10 @@ void thread_pool::job_wrapper::execute() {
 void thread_pool::execute_pending_jobs() {
 	while (_execute)
 		this->execute_pending_job();
+}
+
+std::unordered_map<std::thread::id, thread_pool::worker_stats> thread_pool::workers_stats() const {
+	return _workers_stats;
 }
 
 void thread_pool::join_threads() {

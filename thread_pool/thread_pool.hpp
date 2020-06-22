@@ -11,18 +11,15 @@
 #include <future>
 #include <queue>
 #include <thread>
+#include <unordered_map>
 
 namespace thread_pool {
 
 class THREADPOOL_EXPORT thread_pool final {
   public:
-	struct worker_execution_times final {
-		worker_execution_times() = default;
-
-		worker_execution_times(boost::timer::cpu_times&& working_times, boost::timer::cpu_times&& sleeping_times);
-
-		boost::timer::cpu_times working;
-		boost::timer::cpu_times sleeping;
+	struct worker_stats final {
+		boost::timer::cpu_times working_time;
+		boost::timer::cpu_times sleeping_time;
 	};
 
 	thread_pool();
@@ -50,6 +47,8 @@ class THREADPOOL_EXPORT thread_pool final {
 	}
 
 	void execute_pending_job();
+
+	std::unordered_map<std::thread::id, worker_stats> workers_stats() const;
 
   private:
 	class job_wrapper final {
@@ -102,6 +101,7 @@ class THREADPOOL_EXPORT thread_pool final {
 	// TODO research how std::atomic<bool> works
 	std::atomic<bool> _execute;
 	data_structures::thread_safe::lock_based::queue<job_wrapper> _jobs;
+	std::unordered_map<std::thread::id, worker_stats> _workers_stats;
 	std::vector<std::thread> _workers;
 };
 

@@ -55,6 +55,18 @@ template <typename T> class queue {
 			throw std::logic_error{"All data was already popped!"};
 	}
 
+	bool pop(T& out) {
+		std::lock_guard<std::mutex> lock{_head_guard};
+
+		if (_head.get() != this->get_tail()) {
+			out = std::move(_head->next_node->data);
+			_head = std::move(_head->next_node);
+			return true;
+		}
+
+		return false;
+	}
+
 	T wait_pop() {
 		std::unique_lock<std::mutex> lock{_head_guard};
 

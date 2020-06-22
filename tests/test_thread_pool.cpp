@@ -8,6 +8,7 @@
 #include <chrono>
 #include <iostream>
 #include <numeric>
+#include <random>
 #include <thread>
 
 namespace this_thread = std::this_thread;
@@ -17,7 +18,7 @@ using namespace std::chrono_literals;
 using std::back_inserter;
 using std::cout;
 using std::merge;
-using std::random_shuffle;
+using std::shuffle;
 using std::sort;
 using std::vector;
 
@@ -116,7 +117,7 @@ BOOST_AUTO_TEST_CASE(CreateAndDestroy) {
 BOOST_AUTO_TEST_CASE(DataParallelism) {
 	std::vector<int> data(1'000'000);
 	std::iota(data.begin(), data.end(), 0);
-	std::random_shuffle(data.begin(), data.end());
+	std::shuffle(data.begin(), data.end(), std::default_random_engine{});
 
 	std::list<int> sorted_data(data.size());
 	std::iota(sorted_data.begin(), sorted_data.end(), 0);
@@ -172,7 +173,7 @@ BOOST_AUTO_TEST_CASE(DataParallelism) {
 BOOST_AUTO_TEST_CASE(TaskParallelism) {
 	std::vector<int> data(1'000'000);
 	std::iota(data.begin(), data.end(), 0);
-	std::random_shuffle(data.begin(), data.end());
+	std::shuffle(data.begin(), data.end(), std::default_random_engine{});
 
 	std::vector<int> data_2 = data;
 
