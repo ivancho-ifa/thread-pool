@@ -19,7 +19,13 @@ template <typename T> nanosecond_type measure_performance() {
 
 	std::thread reader{[&queue]() {
 		for (int i = 0; i < 1000; ++i)
-			queue.wait_pop();
+			while (true)
+				try {
+					queue.pop();
+				}
+				catch (const std::logic_error&) {
+					break;
+				}
 	}};
 	std::thread writer{[&queue]() {
 		for (int i = 0; i < 1000; ++i) {

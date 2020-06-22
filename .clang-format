@@ -9,5 +9,7 @@ BraceWrapping:
   AfterStruct: false
 ColumnLimit: 120
 FixNamespaceComments: true
+MaxEmptyLinesToKeep: 2
 NamespaceIndentation: None
+PointerAlignment: Left
 UseTab: ForContinuationAndIndentation

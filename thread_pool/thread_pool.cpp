@@ -23,7 +23,7 @@ namespace thread_pool {
 
 /* thread_pool::worker_execution_times definitions */
 
-thread_pool::worker_execution_times::worker_execution_times(cpu_times &&working_times, cpu_times &&sleeping_times)
+thread_pool::worker_execution_times::worker_execution_times(cpu_times&& working_times, cpu_times&& sleeping_times)
 	: working{working_times}, sleeping{sleeping_times} {
 }
 
@@ -37,17 +37,17 @@ thread_pool::thread_pool() : _execute{true} {
 			_workers.emplace_back(thread{&thread_pool::execute_pending_jobs, this});
 		}
 	}
-	catch (const system_error &e) {
+	catch (const system_error& e) {
 		_execute = false;
 		this->join_threads();
 		throw;
 	}
 }
 
-thread_pool::thread_pool(thread_pool &&other) noexcept : _workers{move(other._workers)} {
+thread_pool::thread_pool(thread_pool&& other) noexcept : _workers{move(other._workers)} {
 }
 
-thread_pool &thread_pool::operator=(thread_pool &&other) noexcept {
+thread_pool& thread_pool::operator=(thread_pool&& other) noexcept {
 	_workers = move(other._workers);
 
 	return *this;
@@ -67,7 +67,7 @@ void thread_pool::execute_pending_job() {
 		job_wrapper job = _jobs.pop();
 		job.execute();
 	}
-	catch (const logic_error &error) {
+	catch (const logic_error& error) {
 		std::this_thread::yield();
 	}
 }
@@ -88,7 +88,7 @@ void thread_pool::execute_pending_jobs() {
 void thread_pool::join_threads() {
 	std::cout << "Joining threads..." << '\n';
 
-	for (thread &worker : _workers)
+	for (thread& worker : _workers)
 		if (worker.joinable())
 			worker.join();
 }

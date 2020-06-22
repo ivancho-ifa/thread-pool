@@ -21,7 +21,7 @@ using std::random_shuffle;
 using std::sort;
 using std::vector;
 
-std::vector<std::vector<int>::iterator> separate_to_chunks(std::vector<int> &data, size_t chunks_count) {
+std::vector<std::vector<int>::iterator> separate_to_chunks(std::vector<int>& data, size_t chunks_count) {
 	const size_t chunks_size = (data.size() / chunks_count) + 1;
 
 	std::vector<std::vector<int>::iterator> chunk_separators;
@@ -35,7 +35,7 @@ std::vector<std::vector<int>::iterator> separate_to_chunks(std::vector<int> &dat
 	return chunk_separators;
 }
 
-void merge_sorted_chunks_serial(std::vector<int> &data, std::vector<std::vector<int>::iterator> &chunk_separators) {
+void merge_sorted_chunks_serial(std::vector<int>& data, std::vector<std::vector<int>::iterator>& chunk_separators) {
 	const int end = chunk_separators.size() - 2;
 	if (end == 0)
 		return;
@@ -51,8 +51,8 @@ void merge_sorted_chunks_serial(std::vector<int> &data, std::vector<std::vector<
 	merge_sorted_chunks_serial(data, chunk_separators);
 }
 
-std::future<std::pair<int, int>> parallel_sort(thread_pool::thread_pool &workers, std::vector<int> &data,
-											   std::vector<std::vector<int>::iterator> &chunk_separators, int begin,
+std::future<std::pair<int, int>> parallel_sort(thread_pool::thread_pool& workers, std::vector<int>& data,
+											   std::vector<std::vector<int>::iterator>& chunk_separators, int begin,
 											   int end) {
 	if (end == begin + 1) {
 		return workers.add_job([=, chunk_begin = chunk_separators[begin], chunk_end = chunk_separators[end]]() {
@@ -106,6 +106,7 @@ std::future<std::pair<int, int>> parallel_sort(thread_pool::thread_pool &workers
 	});
 }
 
+
 BOOST_AUTO_TEST_SUITE(ThreadPoolTests)
 
 BOOST_AUTO_TEST_CASE(CreateAndDestroy) {
@@ -113,11 +114,20 @@ BOOST_AUTO_TEST_CASE(CreateAndDestroy) {
 }
 
 BOOST_AUTO_TEST_CASE(DataParallelism) {
-	thread_pool::thread_pool workers;
-
 	std::vector<int> data(1'000'000);
 	std::iota(data.begin(), data.end(), 0);
 	std::random_shuffle(data.begin(), data.end());
+
+	std::list<int> sorted_data(data.size());
+	std::iota(sorted_data.begin(), sorted_data.end(), 0);
+
+	std::vector<int> data_2 = data;
+
+	/* Parallel sort */
+
+	boost::timer::cpu_timer parallel_sort_timer;
+
+	thread_pool::thread_pool workers;
 
 	const size_t chunks_count = 100;
 
@@ -133,33 +143,74 @@ BOOST_AUTO_TEST_CASE(DataParallelism) {
 			}));
 	}
 
-	for (auto &job_result : job_results)
+	for (auto& job_result : job_results)
 		job_result.wait();
 
 	merge_sorted_chunks_serial(data, chunk_separators);
 
-	std::list<int> sorted_data(data.size());
-	std::iota(sorted_data.begin(), sorted_data.end(), 0);
+	const auto parallel_sort_times = parallel_sort_timer.elapsed();
+
 	BOOST_CHECK_EQUAL_COLLECTIONS(data.cbegin(), data.cend(), sorted_data.cbegin(), sorted_data.cend());
+
+
+	/* std::sort */
+
+	boost::timer::cpu_timer std_sort_timer;
+	std::sort(data_2.begin(), data_2.end());
+	const auto std_sort_times = std_sort_timer.elapsed();
+
+
+	/* Compare times */
+
+	const auto parallel_sort_time = parallel_sort_times.user + parallel_sort_times.system;
+	const auto std_sort_time = std_sort_times.user + std_sort_times.system;
+
+	BOOST_TEST_MESSAGE("parallel_sort_time: " << parallel_sort_time << ", std_sort_time: " << std_sort_time);
+	BOOST_CHECK_LE(parallel_sort_time, std_sort_time);
 }
 
 BOOST_AUTO_TEST_CASE(TaskParallelism) {
-	thread_pool::thread_pool workers;
-
 	std::vector<int> data(1'000'000);
 	std::iota(data.begin(), data.end(), 0);
 	std::random_shuffle(data.begin(), data.end());
 
-	const size_t chunks_count = 100;
+	std::vector<int> data_2 = data;
 
+	std::list<int> sorted_data(data.size());
+	std::iota(sorted_data.begin(), sorted_data.end(), 0);
+
+
+	/* Parallel sort */
+
+	boost::timer::cpu_timer parallel_sort_timer;
+
+	thread_pool::thread_pool workers;
+
+	const size_t chunks_count = 100;
 	auto chunk_separators = separate_to_chunks(data, chunks_count);
 
 	auto sort_result = parallel_sort(workers, data, chunk_separators, 0, chunk_separators.size() - 1);
 	sort_result.wait();
 
-	std::list<int> sorted_data(data.size());
-	std::iota(sorted_data.begin(), sorted_data.end(), 0);
+	const auto parallel_sort_times = parallel_sort_timer.elapsed();
+
 	BOOST_CHECK_EQUAL_COLLECTIONS(data.cbegin(), data.cend(), sorted_data.cbegin(), sorted_data.cend());
+
+
+	/* std::sort */
+
+	boost::timer::cpu_timer std_sort_timer;
+	std::sort(data_2.begin(), data_2.end());
+	const auto std_sort_times = std_sort_timer.elapsed();
+
+
+	/* Compare times */
+
+	const auto parallel_sort_time = parallel_sort_times.user + parallel_sort_times.system;
+	const auto std_sort_time = std_sort_times.user + std_sort_times.system;
+
+	BOOST_TEST_MESSAGE("parallel_sort_time: " << parallel_sort_time << ", std_sort_time: " << std_sort_time);
+	BOOST_CHECK_LE(parallel_sort_time, std_sort_time);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

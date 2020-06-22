@@ -19,23 +19,23 @@ template <typename T> class queue {
 	queue() : _head{std::make_unique<node>()}, _tail{_head.get()} {
 	}
 
-	queue(const queue &) = delete;
+	queue(const queue&) = delete;
 
-	queue &operator=(const queue &) = delete;
+	queue& operator=(const queue&) = delete;
 
-	queue(queue &&) = default;
+	queue(queue&&) = default;
 
-	queue &operator=(queue &&) = default;
+	queue& operator=(queue&&) = default;
 
 	~queue() = default;
 
-	void push(T &&data) {
+	void push(T&& data) {
 		std::unique_ptr<node> tail = std::make_unique<node>(std::move(data));
 
 		{
 			std::lock_guard<std::mutex> lock{_tail_guard};
 
-			node *const new_tail = tail.get();
+			node* const new_tail = tail.get();
 			_tail->next_node = std::move(tail);
 			_tail = new_tail;
 		}
@@ -75,19 +75,19 @@ template <typename T> class queue {
 	struct node {
 		node() = default;
 
-		explicit node(T &&data) : node{std::move(data), nullptr} {
+		explicit node(T&& data) : node{std::move(data), nullptr} {
 		}
 
-		explicit node(T &&data, node *next_node) : data{std::move(data)}, next_node{next_node} {
+		explicit node(T&& data, node* next_node) : data{std::move(data)}, next_node{next_node} {
 		}
 
-		node(const node &) = delete;
+		node(const node&) = delete;
 
-		node &operator=(const node &) = delete;
+		node& operator=(const node&) = delete;
 
-		node(node &&) = default;
+		node(node&&) = default;
 
-		node &operator=(node &&) = default;
+		node& operator=(node&&) = default;
 
 		~node() = default;
 
@@ -95,7 +95,7 @@ template <typename T> class queue {
 		std::unique_ptr<node> next_node;
 	};
 
-	node *get_tail() const {
+	node* get_tail() const {
 		std::lock_guard<std::mutex> lock{_tail_guard};
 
 		return _tail;
@@ -105,7 +105,7 @@ template <typename T> class queue {
 	std::unique_ptr<node> _head;
 	// TODO Research if it makes sense to protect the tail with a read/write lock
 	mutable std::mutex _tail_guard;
-	node *_tail;
+	node* _tail;
 	std::condition_variable _notifier;
 };
 
@@ -120,12 +120,23 @@ template <typename T> class std_queue {
 				  "The thread-safe queue requires nothrowable move-constructible elements");
 
   public:
-	void push(T &&element) {
+	void push(T&& element) {
 		std::lock_guard<std::mutex> lock{_guard};
 
 		_queue.emplace(std::move(element));
 
 		_notifier.notify_one();
+	}
+
+	T pop() {
+		std::lock_guard<std::mutex> lock{_guard};
+
+		if (_queue.empty())
+			throw std::logic_error{"All data was already popped!"};
+
+		T front = std::move(_queue.front());
+		_queue.pop();
+		return front;
 	}
 
 	T wait_pop() {

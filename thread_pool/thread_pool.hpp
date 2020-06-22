@@ -19,7 +19,7 @@ class THREADPOOL_EXPORT thread_pool final {
 	struct worker_execution_times final {
 		worker_execution_times() = default;
 
-		worker_execution_times(boost::timer::cpu_times &&working_times, boost::timer::cpu_times &&sleeping_times);
+		worker_execution_times(boost::timer::cpu_times&& working_times, boost::timer::cpu_times&& sleeping_times);
 
 		boost::timer::cpu_times working;
 		boost::timer::cpu_times sleeping;
@@ -27,13 +27,13 @@ class THREADPOOL_EXPORT thread_pool final {
 
 	thread_pool();
 
-	thread_pool(const thread_pool &other) = delete;
+	thread_pool(const thread_pool& other) = delete;
 
-	thread_pool &operator=(const thread_pool &other) = delete;
+	thread_pool& operator=(const thread_pool& other) = delete;
 
-	thread_pool(thread_pool &&other) noexcept;
+	thread_pool(thread_pool&& other) noexcept;
 
-	thread_pool &operator=(thread_pool &&other) noexcept;
+	thread_pool& operator=(thread_pool&& other) noexcept;
 
 	~thread_pool();
 
@@ -58,15 +58,15 @@ class THREADPOOL_EXPORT thread_pool final {
 
 		~job_wrapper() = default;
 
-		job_wrapper(const job_wrapper &) = delete;
+		job_wrapper(const job_wrapper&) = delete;
 
-		job_wrapper &operator=(const job_wrapper &) = delete;
+		job_wrapper& operator=(const job_wrapper&) = delete;
 
-		job_wrapper(job_wrapper &&) = default;
+		job_wrapper(job_wrapper&&) = default;
 
-		job_wrapper &operator=(job_wrapper &&) = default;
+		job_wrapper& operator=(job_wrapper&&) = default;
 
-		template <typename Job> job_wrapper(Job &&job) : _job{new job_wrapper::job<Job>{std::move(job)}} {
+		template <typename Job> job_wrapper(Job&& job) : _job{new job_wrapper::job<Job>{std::move(job)}} {
 		}
 
 		void execute();
@@ -81,7 +81,7 @@ class THREADPOOL_EXPORT thread_pool final {
 
 		template <typename F> class job final : public callable {
 		  public:
-			job(F &&f) : _f{std::move(f)} {
+			job(F&& f) : _f{std::move(f)} {
 			}
 
 			void execute() override {

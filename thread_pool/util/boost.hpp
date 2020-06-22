@@ -6,7 +6,7 @@ namespace util {
 
 namespace boost {
 
-::boost::timer::cpu_times &operator+=(::boost::timer::cpu_times &lhs, const ::boost::timer::cpu_times &rhs) {
+::boost::timer::cpu_times& operator+=(::boost::timer::cpu_times& lhs, const ::boost::timer::cpu_times& rhs) {
 	lhs.system += rhs.system;
 	lhs.user += rhs.user;
 	lhs.wall += rhs.wall;
@@ -14,7 +14,7 @@ namespace boost {
 	return lhs;
 }
 
-::boost::timer::cpu_times operator-(const ::boost::timer::cpu_times &lhs, const ::boost::timer::cpu_times &rhs) {
+::boost::timer::cpu_times operator-(const ::boost::timer::cpu_times& lhs, const ::boost::timer::cpu_times& rhs) {
 	::boost::timer::cpu_times result;
 
 	result.system = lhs.system - rhs.system;
