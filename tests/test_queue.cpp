@@ -11,24 +11,14 @@ using boost::timer::nanosecond_type;
 using thread_pool::data_structures::thread_safe::lock_based::queue;
 using thread_pool::data_structures::thread_safe::lock_based::std_queue;
 
-template <typename T> nanosecond_type measure_performance() {
-	boost::timer::cpu_timer timer;
-	timer.start();
-
-	T queue;
-
-	std::thread reader{[&queue]() {
-		for (int i = 0; i < 1000; ++i)
-			while (true)
-				try {
-					queue.pop();
-				}
-				catch (const std::logic_error&) {
-					break;
-				}
+template <typename Q> void test_read_write(Q& queue, size_t queue_size) {
+	std::thread reader{[&queue, queue_size]() {
+		for (int i = 0; i < queue_size; ++i)
+			for (Q::value_type element; !queue.pop(element);)
+				;
 	}};
-	std::thread writer{[&queue]() {
-		for (int i = 0; i < 1000; ++i) {
+	std::thread writer{[&queue, queue_size]() {
+		for (int i = 0; i < queue_size; ++i) {
 			int i2 = i;
 			queue.push(std::move(i2));
 		}
@@ -38,21 +28,8 @@ template <typename T> nanosecond_type measure_performance() {
 		reader.join();
 	if (writer.joinable())
 		writer.join();
-
-	timer.stop();
-	boost::timer::cpu_times elapsed_times = timer.elapsed();
-
-	return elapsed_times.wall;
 }
 
-template <typename T> nanosecond_type measure_performance(std::size_t count) {
-	using namespace boost::accumulators;
-
-	accumulator_set<nanosecond_type, features<tag::mean>> accumulator;
-	for (int i = 0; i < count; ++i)
-		accumulator(measure_performance<T>());
-	return mean(accumulator);
-}
 
 BOOST_AUTO_TEST_SUITE(ThreadSafeQueue)
 
@@ -100,13 +77,21 @@ BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(Performance)
 
 BOOST_AUTO_TEST_CASE(std_queue_vs_queue) {
-	nanosecond_type queue_time = measure_performance<queue<int>>(100);
-	nanosecond_type thread_safe_std_queue_time = measure_performance<std_queue<int>>(100);
+	queue<int> q;
+	std_queue<int> std_q;
+	const size_t queue_size = 1'000'000;
 
-	BOOST_TEST_MESSAGE("queue time: " << queue_time);
-	BOOST_TEST_MESSAGE("std_queue time: " << thread_safe_std_queue_time);
+	boost::timer::cpu_timer q_timer;
+	test_read_write(q, queue_size);
+	boost::timer::cpu_times q_times = q_timer.elapsed();
 
-	BOOST_CHECK_LE(queue_time, thread_safe_std_queue_time);
+	boost::timer::cpu_timer std_q_timer;
+	test_read_write(std_q, queue_size);
+	boost::timer::cpu_times std_q_times = std_q_timer.elapsed();
+
+	BOOST_TEST_MESSAGE("USER+SYSTEM | queue time: " << q_times.user + q_times.system
+													<< ", std_queue time: " << std_q_times.user + std_q_times.system);
+	BOOST_TEST_MESSAGE("WALL | queue time: " << q_times.wall << ", std_queue time: " << std_q_times.wall);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

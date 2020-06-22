@@ -13,6 +13,11 @@ target_compile_definitions(ThreadPoolTests PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(ThreadPoolTests ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY})
 target_link_libraries(ThreadPoolTests ${Boost_TIMER_LIBRARY})
 
+# Link OpenMP
+
+find_package(OpenMP)
+target_link_libraries(ThreadPoolTests OpenMP::OpenMP_CXX)
+
 # Link ThreadPool
 
 target_include_directories(ThreadPoolTests PRIVATE ThreadPool)

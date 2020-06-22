@@ -24,8 +24,10 @@ namespace thread_pool {
 thread_pool::thread_pool() : _execute{true} {
 	const unsigned threads_count = thread::hardware_concurrency();
 	_workers.reserve(threads_count);
+	_workers_stats.reserve(_workers.size());
 	try {
 		for (unsigned i = 0; i < threads_count; ++i) {
+			_workers_stats.emplace_back();
 			_workers.emplace_back(thread{&thread_pool::execute_pending_jobs, this});
 		}
 	}
@@ -55,10 +57,12 @@ void thread_pool::execute_pending_job() {
 	// job_wrapper job = _jobs.wait_pop();
 	// job.execute();
 
-	if (job_wrapper job; _jobs.pop(job))
+	if (job_wrapper job; _jobs.pop(job)) {
 		job.execute();
-	else
+	}
+	else {
 		std::this_thread::yield();
+	}
 }
 
 /* thread_pool::job_wrapper definitions */
@@ -74,13 +78,11 @@ void thread_pool::execute_pending_jobs() {
 		this->execute_pending_job();
 }
 
-std::unordered_map<std::thread::id, thread_pool::worker_stats> thread_pool::workers_stats() const {
+std::vector<thread_pool::worker_stats> thread_pool::workers_stats() const {
 	return _workers_stats;
 }
 
 void thread_pool::join_threads() {
-	std::cout << "Joining threads..." << '\n';
-
 	for (thread& worker : _workers)
 		if (worker.joinable())
 			worker.join();

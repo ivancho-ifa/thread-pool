@@ -16,6 +16,9 @@ template <typename T> class queue {
 				  "The thread-safe queue requires nothrowable move-constructible elements");
 
   public:
+	using value_type = T;
+
+
 	queue() : _head{std::make_unique<node>()}, _tail{_head.get()} {
 	}
 
@@ -132,6 +135,9 @@ template <typename T> class std_queue {
 				  "The thread-safe queue requires nothrowable move-constructible elements");
 
   public:
+	using value_type = T;
+
+
 	void push(T&& element) {
 		std::lock_guard<std::mutex> lock{_guard};
 
@@ -151,13 +157,25 @@ template <typename T> class std_queue {
 		return front;
 	}
 
+	bool pop(T& out) {
+		std::lock_guard<std::mutex> lock{_guard};
+
+		if (!_queue.empty()) {
+			out = std::move(_queue.front());
+			_queue.pop();
+			return true;
+		}
+
+		return false;
+	}
+
 	T wait_pop() {
 		std::unique_lock<std::mutex> lock{_guard};
 
 		_notifier.wait(lock, [this]() { return !_queue.empty(); });
 
 		T front = std::move(_queue.front());
-		// Note thst pop won't throw because the notifier waits until the queue is not empty.
+		// Note that pop won't throw because the notifier waits until the queue is not empty.
 		_queue.pop();
 		return front;
 	}

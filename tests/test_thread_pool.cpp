@@ -23,7 +23,7 @@ using std::sort;
 using std::vector;
 
 std::vector<std::vector<int>::iterator> separate_to_chunks(std::vector<int>& data, size_t chunks_count) {
-	const size_t chunks_size = (data.size() / chunks_count) + 1;
+	const size_t chunks_size = std::ceil((data.size() / static_cast<double>(chunks_count)));
 
 	std::vector<std::vector<int>::iterator> chunk_separators;
 	chunk_separators.reserve(chunks_size);
@@ -171,7 +171,7 @@ BOOST_AUTO_TEST_CASE(DataParallelism) {
 }
 
 BOOST_AUTO_TEST_CASE(TaskParallelism) {
-	std::vector<int> data(1'000'000);
+	std::vector<int> data(1'000);
 	std::iota(data.begin(), data.end(), 0);
 	std::shuffle(data.begin(), data.end(), std::default_random_engine{});
 

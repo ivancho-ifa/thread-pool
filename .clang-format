@@ -9,6 +9,7 @@ BraceWrapping:
   AfterStruct: false
 ColumnLimit: 120
 FixNamespaceComments: true
+IndentPPDirectives: BeforeHash
 MaxEmptyLinesToKeep: 2
 NamespaceIndentation: None
 PointerAlignment: Left

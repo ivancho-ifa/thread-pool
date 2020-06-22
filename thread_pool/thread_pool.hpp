@@ -19,7 +19,7 @@ class THREADPOOL_EXPORT thread_pool final {
   public:
 	struct worker_stats final {
 		boost::timer::cpu_times working_time;
-		boost::timer::cpu_times sleeping_time;
+		boost::timer::cpu_times overall_time;
 	};
 
 	thread_pool();
@@ -48,7 +48,7 @@ class THREADPOOL_EXPORT thread_pool final {
 
 	void execute_pending_job();
 
-	std::unordered_map<std::thread::id, worker_stats> workers_stats() const;
+	std::vector<thread_pool::worker_stats> workers_stats() const;
 
   private:
 	class job_wrapper final {
@@ -100,8 +100,8 @@ class THREADPOOL_EXPORT thread_pool final {
 
 	// TODO research how std::atomic<bool> works
 	std::atomic<bool> _execute;
-	data_structures::thread_safe::lock_based::queue<job_wrapper> _jobs;
-	std::unordered_map<std::thread::id, worker_stats> _workers_stats;
+	data_structures::thread_safe::lock_based::std_queue<job_wrapper> _jobs;
+	std::vector<worker_stats> _workers_stats;
 	std::vector<std::thread> _workers;
 };
 
