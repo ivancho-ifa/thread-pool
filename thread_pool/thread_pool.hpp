@@ -10,6 +10,7 @@
 #include <functional>
 #include <future>
 #include <queue>
+#include <shared_mutex>
 #include <thread>
 #include <unordered_map>
 
@@ -23,6 +24,9 @@ class THREADPOOL_EXPORT thread_pool final {
 	};
 
 	thread_pool();
+
+	// TODO Make it
+	thread_pool(size_t workers_count);
 
 	thread_pool(const thread_pool& other) = delete;
 
@@ -48,7 +52,7 @@ class THREADPOOL_EXPORT thread_pool final {
 
 	void execute_pending_job();
 
-	std::vector<thread_pool::worker_stats> workers_stats() const;
+	std::unordered_map<std::thread::id, worker_stats> workers_stats() const;
 
   private:
 	class job_wrapper final {
@@ -101,7 +105,8 @@ class THREADPOOL_EXPORT thread_pool final {
 	// TODO research how std::atomic<bool> works
 	std::atomic<bool> _execute;
 	data_structures::thread_safe::lock_based::std_queue<job_wrapper> _jobs;
-	std::vector<worker_stats> _workers_stats;
+	mutable std::shared_mutex _workers_stats_guard;
+	std::unordered_map<std::thread::id, worker_stats> _workers_stats;
 	std::vector<std::thread> _workers;
 };
 
